@@ -1,0 +1,157 @@
+---
+title: "Data Wrangling Mini-Project"
+author: "Matthew Huber"
+date: "November 7, 2018"
+output:
+  word_document: default
+  html_notebook: default
+---
+
+```{r setup, results='hide',warning=FALSE}
+#Load tidyverse in order to use readr
+library(tidyverse)
+library(zipcode)
+library(rvest)
+```
+
+```{r}
+providers <- readxl::read_xlsx("/Users/matt/Documents/Class Docs/Data Science/Mini Project 2/OCDEL Child Care Providers - March 2018 Deliverable_updated 20180525.xlsx")
+names(providers) <- gsub(" ","",names(providers))
+```
+
+```{r}
+#Creating numeric STAR Variable and Proportion Counter
+
+providers$STAR <- providers$STARLevel
+providers$STAR <- ifelse(providers$STAR=="No STAR Level",0,providers$STAR)
+providers$STAR <- ifelse(providers$STAR=="STAR 1",1,providers$STAR)
+providers$STAR <- ifelse(providers$STAR=="STAR 1 - Suspended",1,providers$STAR)
+providers$STAR <- ifelse(providers$STAR=="STAR 2",2,providers$STAR)
+providers$STAR <- ifelse(providers$STAR=="STAR 2 - Suspended",2,providers$STAR)
+providers$STAR <- ifelse(providers$STAR=="STAR 3",3,providers$STAR)
+providers$STAR <- ifelse(providers$STAR=="STAR 3 - Suspended",3,providers$STAR)
+providers$STAR <- ifelse(providers$STAR=="STAR 4",4,providers$STAR)
+providers$STAR <- ifelse(providers$STAR=="STAR 4 - Suspended",4,providers$STAR)
+
+#Creating a variable to calculate the proportion of negative sanctions
+
+providers$NegSanc <- ifelse(providers$`NegativeSanctions?`=="Yes",1,0)
+```
+
+```{r}
+#Creating the data set and examining univariate distributions
+
+providers %>% select(FacilityZipCode,STAR,NegSanc) %>% group_by(FacilityZipCode) %>% summarize(total=n(),maxSTAR=max(STAR),propneg=sum(NegSanc=1)/n()) -> firstset
+
+ggplot() + geom_histogram(data=firstset,mapping=aes(x=total))
+ggplot() + geom_histogram(data=firstset,mapping=aes(x=as.numeric(maxSTAR)))
+ggplot() + geom_histogram(data=firstset,mapping=aes(x=propneg))
+```
+
+3)
+-Total Number of Facilities per Zipcode: The data is extremely right skewed, with a high concentration of low numbers of child care facilities per zipcode. There are also a few outliers with over 90 per zipcode, which most likely account for major cities.
+-Max STAR Rating: There is a large concentration of zipcodes with a max STAR rating of 4, with a fairl even distribution between 1, 2, and 3 STAR ratings and fortunately only a small number with no STAR ratings. This is reassuring to me because I interpret this as that for over half of the zipcodes there is at least one child care facility with a STAR rating of 3 or 4.
+-Proportion of Negative Sanctions: What bothers me the most about this graph is the high number of proportions equaling 1. That means 100% of the facilities in that zipcode have negative sanctions against them.
+
+
+```{r}
+#Reading in and merging the income data
+
+medinc <- readxl::read_xlsx("/Users/matt/Documents/Class Docs/Data Science/Mini Project 2/MedianZIP-3.xlsx")
+medinc$Zip <- clean.zipcodes(medinc$Zip)
+firstset %>% left_join(medinc,by=c("FacilityZipCode"="Zip")) -> mergedset1
+medinc %>% left_join(firstset,by=c("Zip"="FacilityZipCode")) -> mergedset2
+
+dim(mergedset1)
+dim(mergedset2)
+
+mergedset1 %>% summarize(nomatch=sum(is.na(Pop)))
+mergedset2 %>% summarize(nomatch=sum(is.na(maxSTAR)))
+```
+
+6) The dimensions for the merged data set match as expected. There are 23 observations in the new data set that did not match but 31,658 from the old set that did not match the new. These observations did not merge because the zipcodes in the original set were for PO Boxes and PO Boxes do not have income data.
+
+```{r}
+#Scraping the data
+
+compedu <- NULL
+
+for(i in 1:18){
+  if(i==1){
+    edu <- "http://zipatlas.com/us/pa/zip-code-comparison/percentage-college-graduates.htm"
+    edu %>% read_html() %>% html_nodes("table") %>% .[[13]] %>% html_table() %>% as.tibble() -> edu1
+    compedu <- rbind(compedu,edu1)}
+  else{
+    edu <- paste0("http://zipatlas.com/us/pa/zip-code-comparison/percentage-college-graduates.",i,".htm")
+    edu %>% read_html() %>% html_nodes("table") %>% .[[13]] %>% html_table() %>% as.tibble() -> edu1
+    compedu <- rbind(compedu,edu1)
+  }
+}
+
+compedu %>% filter(X1!='#') -> edumerge
+```
+
+```{r}
+#Merging in the education data
+
+mergedset1 %>% left_join(edumerge,by=c("FacilityZipCode"="X2")) -> finalmerge
+edumerge %>% left_join(mergedset1,by=c("X2"="FacilityZipCode")) -> testfinal
+
+dim(finalmerge)
+dim(testfinal)
+
+finalmerge %>% summarize(nomatch=sum(is.na(X7)))
+testfinal %>% summarize(nomatch=sum(is.na(Pop)))
+```
+
+9) There were 45 observations from the new data set that did not match up, but 764 from the original that do not match the new data. These observations did not merge properly because there would also be no education data for zipcodes that are PO Boxes.
+
+
+```{r}
+#Renaming the final data set headings
+
+names(finalmerge) <- c("FacilityZipCode","total","maxSTAR","propneg","Median","Mean","Pop","#","Location","City","Population","PercCollegeGrad","Rank")
+
+#Creating the last variables
+
+finalmerge$ccdens <- finalmerge$total/1000
+finalmerge$logccd <- log(finalmerge$ccdens)
+finalmerge$incvar <- finalmerge$Mean/finalmerge$Median
+
+#Exploring the variables above
+
+ggplot() + geom_histogram(data=finalmerge,mapping=aes(x=ccdens))
+ggplot() + geom_histogram(data=finalmerge,mapping=aes(x=logccd))
+ggplot() + geom_histogram(data=finalmerge,mapping=aes(x=incvar))
+```
+
+11) incvar is the relationship between the mean and the median income variables. If this variable is greater than 1, it means that the average income is higher than the median income and vice versa.
+
+12) ccdens and logccd are both extremely right skewed. incvar appears to be approximately normally distributed. However, it is not centered around 1. Rather it appears to be centered around 1.25, meaning that most zipcodes have a higher average income than a median income.
+
+13) If performing a linear regression to predict the number of facilities per zipcode, I would use the total per zipcode rather than ccdens or logccd.
+
+
+```{r}
+#Exploring the data and relationships
+
+finalmerge %>% ggplot() + geom_point(aes(Mean,Median))
+finalmerge %>% ggplot() + geom_boxplot(aes(maxSTAR,Mean))
+
+finalmerge$PercCollegeGrad <- gsub(" %","",finalmerge$PercCollegeGrad)
+finalmerge$PercCollegeGrad <- as.numeric(finalmerge$PercCollegeGrad)
+
+finalmerge %>% ggplot() + geom_point(aes(PercCollegeGrad,Mean))
+finalmerge %>% ggplot() + geom_point(aes(PercCollegeGrad,Mean,color=maxSTAR))
+
+finalmerge %>% ggplot() + geom_point(aes(logccd,Mean))
+finalmerge %>% ggplot() + geom_point(aes(logccd,PercCollegeGrad))
+```
+
+14)
+-The mean and median incomes appear to be fairly linear in their relationship.
+-maxSTAR appears to be fairly evenly distributed between each valuem, with similar means and quantiles. The only differences occur in the outliers for each distinct rating.
+-There seems to be a slight linear relationship between education level and mean income. As education levels increase, mean income increases slightly.
+-There seems to be a fairly even clustering by maxSTAR rating, but many of the higher education levels and higher mean incomes come from zipcodes with 4 maxSTAR ratings.
+-The relationship between mean income and logccd seems to not really follow any particular patterns except for concentrations along certain values of logccd before starting to all blend together and have varying logccdvalues and lower mean incomes
+-The same can be said for the relationship between logccd and education level. There are large concetrations spread evenly by education level for lower values of logccd but as that increases the education level tends to drop and scatter more.
