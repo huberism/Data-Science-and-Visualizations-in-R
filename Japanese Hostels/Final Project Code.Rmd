@@ -1,0 +1,271 @@
+---
+title: "Final Project - Japan Hostel Cost"
+author: "Matthew Huber"
+date: "December 19, 2018"
+output:
+  word_document: default
+  html_notebook: default
+---
+*WRITEUP*
+
+I chose this topic for my project because I wanted to look at something I would be passionate about and would have a real-life application that I could utilize. Naturally, a return trip to Japan fit both of those criteria. I found this data set off of kaggle and decided to do an analysis of hostels in Japan to determine where I should go to save money but also not sacrifice the quality of my stay.
+
+The data itelf was relatively clean, with only 15 hostels missing data on summary score and its components. Since the majority of my analysis didn't necessarily focus on the summary score, I decided to drop those points from the dataset. There were also two hostels with prices listed at over 1 million yen, and a quick google search helped me decide to chop off the beginning of each of those prices, leaving a price in thousands of yen that was more accurate to the actual cost of staying at that particular hostel.
+
+The biggest focus of this project was merely an analysis of the data in the data set, looking for trends and patters within Tokyo and between the other four cities in the dataset to help me determine my next Japanese destination. While it would be amazing to return to Tokyo, I've basically done everything I could possibly want to in that city, and the cheapest options for me could be found elsewhere. In the end, after analyzing the results of my plotly graphs, I determined that Kyoto should be my next Japanese destintion due to the affodability of the hostels there and its close proximity to Osaka.
+
+After bringing in exchange rate data for the last 5 years, I also determined that the best time of year to go in order to maximize the returns due to a higher exchange rate would be in June and July, which is the perfect time to go since Mt. Fuji opens for hiking season and Japan is in the tail end of the cherry blossom season.
+
+The two biggest challenges I faced in this project (aside from having more time to devote to it) were trying to plot the exchange rate data on one plot and trying to map the city of Tokyo and overlay the hostel data in order to plan a more in-depth analysis of choosing Tokyo as a destination.
+
+What surpised me the most about this project and the results was that certain trends I expected to find were not there. For example, I expected hostels that were further away from the center of a city to cost less overall, but that was not the case. There wasn't really and relationship that could be gleaned from the data given in the dataset. I was also surprised that there wasn't more of an even distribution of ratings for these hostels, which tells me two things. Either the hostels themselves are as immaculate and hospitable as the rest of Japan is, or the people rating these hostels are biased and/or aren't as fussy as I feel most American tourists would be.
+
+I'd love to eventually be able to dive deeper into this project and eventually pull in other data, such as Airbnb costs and costs for an entire trip (not just lodging).
+
+
+*Code and Graphs*
+
+
+```{r setup, results='hide',warning=FALSE}
+library(tidyverse)
+library(maps)
+library(gridExtra)
+library(mapdata)
+library(ggmap)
+library(plotly)
+```
+
+```{r}
+hostel <- readr::read_csv("/Users/matt/Documents/Class Docs/Data Science/Final Project/Hostel.csv")
+
+hostel$Distance <- gsub("km from city centre","",hostel$Distance)
+hostel$Distance <- as.numeric(hostel$Distance)
+
+hostel$price.from <- ifelse(hostel$price.from > 100000,gsub("100","",hostel$price.from),hostel$price.from)
+hostel$price.from <- as.numeric(hostel$price.from)
+```
+
+```{r}
+#One Variable Analyses
+
+ggplot(data=hostel) + geom_histogram(mapping=aes(x=Distance,color="red"),fill="white",binwidth=10) + ggtitle("Number of Hostels - Distance from City Center") + xlab("Distance (km)") +
+  theme(axis.title.y=element_blank(),legend.position="none")
+
+ggplot(data=hostel) + geom_bar(mapping=aes(x=City,fill=City)) + ggtitle("Number of Hostels per City") + xlab("City") +
+  theme(axis.title.y=element_blank(),legend.position="none") + geom_text(stat='count', aes(x=City,label=..count..), vjust=2,color="white")
+
+ggplot(data=hostel) + geom_histogram(mapping=aes(x=price.from,color="red"),fill="white",binwidth=500) + ggtitle("Price per Night") + xlab("Price per Night (Yen)") +
+  theme(axis.title.y=element_blank(),legend.position="none")
+
+ggplot(data=hostel) + geom_histogram(mapping=aes(x=summary.score,color="red"),fill="white",binwidth=2) + ggtitle("Summary Score") + xlab("Rating") +
+  theme(axis.title.y=element_blank(),legend.position="none")
+
+hostel %>% mutate(rating.band = factor(rating.band,levels=c("Rating","Good","Very Good","Fabulous","Superb"))) %>% ggplot() + geom_bar(mapping=aes(x=rating.band,fill=rating.band)) + 
+  ggtitle("Customer Rating") + xlab("Rating") +
+  theme(axis.title.y=element_blank(),legend.position="none") + geom_text(stat='count', aes(x=rating.band,label=..count..), vjust=1,color="white")
+
+
+
+atmo <- ggplot(data=hostel) + geom_histogram(mapping=aes(x=atmosphere,color="red"),fill="white",binwidth=2)+ xlab("Atmosphere") +
+  theme(axis.title.y=element_blank(),legend.position="none")
+
+clean <- ggplot(data=hostel) + geom_histogram(mapping=aes(x=cleanliness,color="red"),fill="white",binwidth=2) + xlab("Cleanliness") +
+  theme(axis.title.y=element_blank(),legend.position="none")
+
+fac <- ggplot(data=hostel) + geom_histogram(mapping=aes(x=facilities,color="red"),fill="white",binwidth=2) + xlab("Facilities") +
+  theme(axis.title.y=element_blank(),legend.position="none")
+
+loc <- ggplot(data=hostel) + geom_histogram(mapping=aes(x=location.y,color="red"),fill="white",binwidth=2) + xlab("Location") +
+  theme(axis.title.y=element_blank(),legend.position="none")
+
+sec <- ggplot(data=hostel) + geom_histogram(mapping=aes(x=security,color="red"),fill="white",binwidth=2) + xlab("Security") +
+  theme(axis.title.y=element_blank(),legend.position="none")
+
+staff <- ggplot(data=hostel) + geom_histogram(mapping=aes(x=staff,color="red"),fill="white",binwidth=2) + xlab("Staff") +
+  theme(axis.title.y=element_blank(),legend.position="none")
+
+vfm <- ggplot(data=hostel) + geom_histogram(mapping=aes(x=valueformoney,color="red"),fill="white",binwidth=2)+ xlab("Value for Money") +
+  theme(axis.title.y=element_blank(),legend.position="none")
+
+grid.arrange(atmo,clean,fac,loc,sec,staff,vfm,nrow=4,top="Scores")
+```
+
+```{r}
+#Filter out missing values and then drop from initial data set
+
+hostel$nas <- ifelse(is.na(hostel$summary.score),1,0)
+hostel0 <- hostel %>% filter(nas==1)
+
+hostel <- drop_na(hostel,summary.score)
+```
+
+```{r}
+#Two Variable Analyses
+
+ggplot(data=hostel) + geom_point(mapping=aes(price.from,Distance),color="red") + geom_smooth(mapping=aes(price.from,Distance)) + ggtitle("Price per Night vs. Distance") +
+  xlab("Price per Night (Yen)") + ylab("Distance (km)")
+
+ggplot(data=hostel) + geom_point(mapping=aes(summary.score,price.from),color="red") + geom_smooth(mapping=aes(summary.score,price.from)) + ggtitle("Price per Night vs. Summary Score") + 
+  xlab("Summary Score") + ylab("Price per Night (Yen)")
+
+ggplot(data=hostel) + geom_point(mapping=aes(summary.score,Distance),color="red") + geom_smooth(mapping=aes(summary.score,Distance)) + ggtitle("Summary Score vs. Distance") + 
+  xlab("Summary Score") + ylab("Distance (km)")
+
+hostel %>% mutate(rating.band = factor(rating.band,levels=c("Rating","Good","Very Good","Fabulous","Superb"))) %>% ggplot() +
+  geom_boxplot(mapping=aes(rating.band,price.from,fill=rating.band)) +
+  ggtitle("Price per Night by Rating Band") + xlab("Rating") + ylab("Price per Night (Yen)") +
+  theme(legend.position="none")
+
+hostel %>% mutate(rating.band = factor(rating.band,levels=c("Rating","Good","Very Good","Fabulous","Superb"))) %>% ggplot() +
+  geom_boxplot(mapping=aes(rating.band,Distance,fill=rating.band)) +
+  ggtitle("Distance by Rating Band") + xlab("Rating") + ylab("Distance (km)") +
+  theme(legend.position="none")
+
+hostel %>% mutate(rating.band = factor(rating.band,levels=c("Rating","Good","Very Good","Fabulous","Superb"))) %>% ggplot() +
+  geom_boxplot(mapping=aes(rating.band,summary.score,fill=rating.band)) +
+  ggtitle("Summary Score by Rating Band") + xlab("Rating") + ylab("Summary Score") +
+  theme(legend.position="none")
+
+```
+
+```{r}
+#Playing with Plotly
+
+var3 <- hostel %>% mutate(desc=paste(hostel.name,City,price.from,Distance,summary.score,sep="\n")) %>% ggplot() +
+  geom_point(mapping=aes(price.from,Distance,color=summary.score,text=desc)) + scale_colour_gradient2(high="red",mid="white",low="black",midpoint=6,name="Summary Score") +
+  ggtitle("Price vs. Distance by Summary Score") + xlab("Price Per Night") + ylab("Distance from City Center")
+var3
+pdsplot <- ggplotly(var3,tooltip="text")
+htmlwidgets::saveWidget(pdsplot, "Price, Distance, Summary Score Plot.html")
+
+tokplot<- hostel %>% filter(City=="Tokyo") %>% mutate(desc=paste(hostel.name,City,price.from,Distance,summary.score,sep="\n")) %>% ggplot() +
+  geom_point(mapping=aes(price.from,Distance,color=summary.score,text=desc)) + scale_colour_gradient2(high="red",mid="white",low="black",midpoint=6,name="Summary Score") +
+  ggtitle("Price vs. Distance by Summary Score") + xlab("Price Per Night") + ylab("Distance from City Center")
+tokplotly <- ggplotly(tokplot,tooltip="text")
+htmlwidgets::saveWidget(tokplotly, "Tokyo.html")
+
+koplot<- hostel %>% filter(City==c("Kyoto","Osaka")) %>% mutate(desc=paste(hostel.name,City,price.from,Distance,summary.score,sep="\n")) %>% ggplot() +
+  geom_point(mapping=aes(price.from,Distance,color=summary.score,text=desc)) + scale_colour_gradient2(high="red",mid="white",low="black",midpoint=6,name="Summary Score") +
+  ggtitle("Price vs. Distance by Summary Score") + xlab("Price Per Night") + ylab("Distance from City Center")
+koplotly <- ggplotly(koplot,tooltip="text")
+htmlwidgets::saveWidget(koplotly, "Kyoto or Osaka.html")
+```
+
+```{r}
+#Faceting by City
+
+ggplot(data=hostel) + geom_histogram(mapping=aes(x=Distance,color="red"),fill="white",binwidth=10) +
+  facet_wrap(. ~ City) + ggtitle("Number of Hostels - Distance from City Center by City") + xlab("Distance (km)") + theme(axis.title.y=element_blank(),legend.position="none")
+
+ggplot(data=hostel) + geom_histogram(mapping=aes(x=price.from,color="red"),fill="white",binwidth=500) +
+  facet_wrap(. ~ City) + ggtitle("Number of Hostels - Price per Night by City") + xlab("Price per Night (Yen)") + theme(axis.title.y=element_blank(),legend.position="none")
+
+ggplot(data=hostel) + geom_histogram(mapping=aes(x=summary.score,color="red"),fill="white",binwidth=2) + facet_wrap(. ~ City) + ggtitle("Number of Hostels - Summary Score by City") +
+  xlab("Rating") + theme(axis.title.y=element_blank(),legend.position="none")
+
+hostel %>% mutate(rating.band = factor(rating.band,levels=c("Rating","Good","Very Good","Fabulous","Superb"))) %>% ggplot() +
+  geom_bar(mapping=aes(x=rating.band,fill=rating.band)) + facet_wrap(. ~ City,ncol=2,scales="free") + ggtitle("Number of Hostels - Rating Band by City") + xlab("Rating") +
+                                 theme(axis.title.y=element_blank(),legend.position="none")
+
+
+
+ggplot(data=hostel) + geom_point(mapping=aes(price.from,Distance,color="red")) + ggtitle("Price per Night vs. Distance by City") +
+  xlab("Price per Night (Yen)") + ylab("Distance (km)") + facet_wrap(. ~ City) + theme(legend.position="none")
+  
+ggplot(data=hostel) + geom_point(mapping=aes(summary.score,price.from,color="red")) + ggtitle("Summary Score vs. Price per Night by City") +
+  xlab("Summary Score") + ylab("Price per Night (Yen)") + facet_wrap(. ~ City) + theme(legend.position="none")
+
+ggplot(data=hostel) + geom_point(mapping=aes(summary.score,Distance,color="red")) + ggtitle("Summary Score vs. Distance by City") +
+  xlab("Summary Score") + ylab("Distance (km)") + facet_wrap(. ~ City) + theme(legend.position="none")
+
+hostel %>% mutate(rating.band = factor(rating.band,levels=c("Rating","Good","Very Good","Fabulous","Superb"))) %>% ggplot() +
+  geom_boxplot(mapping=aes(rating.band,price.from,fill=rating.band)) + ggtitle("Rating Band vs. Price per Night by City") + xlab("Rating") + ylab("Price per Night (Yen)") +
+  facet_wrap(. ~ City,ncol=2,scales="free") + theme(legend.position="none")
+
+hostel %>% mutate(rating.band = factor(rating.band,levels=c("Rating","Good","Very Good","Fabulous","Superb"))) %>% ggplot() +
+  geom_boxplot(mapping=aes(rating.band,Distance,fill=rating.band)) + ggtitle("Rating Band vs. Distance by City") + xlab("Rating") + ylab("Distance (km)") +
+  facet_wrap(. ~ City,ncol=2,scales="free") + theme(legend.position="none")
+
+```
+
+
+```{r}
+#Making a hostel density map of Japan
+
+city.count <- data.frame(table(hostel$City))
+city.count <- 
+  city.count %>%  
+  spread(Var1, Freq)
+
+jap<-map_data('japan')
+
+jap$Data <- 0
+
+jap$Data[jap$region=="Tokyo"] <- city.count$Tokyo
+jap$Data[jap$region=="Osaka"] <- city.count$Osaka
+jap$Data[jap$region=="Kyoto"] <- city.count$Kyoto
+jap$Data[jap$region=="Hiroshima"] <- city.count$Hiroshima
+jap$Data[jap$region=="Fukuoka"] <- city.count$'Fukuoka-City'
+
+japmap0 <- ggplot(jap) + geom_polygon(aes(long,lat,fill=Data,group=group,text=region)) + coord_fixed(1) + scale_fill_gradient(low = "white", high = "red",name = "Hostels") + ggtitle("Map of Number of Hostels") + theme(axis.title.y=element_blank(),axis.title.x=element_blank(),panel.background = element_rect(fill = "black",colour = "black",size = 0.5, linetype = "solid"),panel.grid.major = element_blank(),panel.grid.minor = element_blank())
+
+japmap <- ggplotly(japmap0,tooltip="text")
+htmlwidgets::saveWidget(japmap, "Hostels by Region.html")
+```
+
+
+```{r}
+#Regression Modeling
+
+#What determines price?
+
+priceregfull <- lm(formula = price.from ~ City+Distance+summary.score+rating.band+atmosphere+cleanliness+facilities+location.y+security+staff+valueformoney,data=hostel)
+pricereg0 <- lm(formula = price.from ~ City+Distance+summary.score+rating.band,data=hostel)
+pricereg1 <- lm(formula = price.from ~ City+Distance+summary.score,data=hostel)
+
+summary(priceregfull)
+summary(pricereg0)
+summary(pricereg1)
+
+#What about rating?
+
+rateregfull <- lm(formula = summary.score ~ City+Distance+price.from+rating.band+atmosphere+cleanliness+facilities+location.y+security+staff+valueformoney,data=hostel)
+ratereg0 <- lm(formula = summary.score~ City+Distance+price.from+rating.band,data=hostel)
+ratereg1 <- lm(formula = summary.score~ City+Distance+price.from,data=hostel)
+rateregcomp <- lm(formula = summary.score ~ atmosphere+cleanliness+facilities+location.y+security+staff+valueformoney,data=hostel)
+
+summary(rateregfull)
+summary(ratereg0)
+summary(ratereg1)
+summary(rateregcomp)
+```
+
+```{r}
+#Exchange Rate
+
+exc0 <- readr::read_csv("/Users/matt/Documents/Class Docs/Data Science/Final Project/dollar-yen-exchange-rate-historical-chart.csv")
+
+exc0$date <- as.Date(exc0$date,format = "%m/%d/%y")
+
+exc0$fulldate <- exc0$date
+exc0 <- exc0 %>% separate(date, into = paste("X",1:3,sep=""))
+names(exc0) <- c("year","month","day","value","fulldate")
+
+exc14<- exc0 %>% filter(year==2014) %>% ggplot() + geom_line(mapping=aes(fulldate,value)) +
+  xlab("Date") + ylab("Yen to USD") + labs(color="Year")
+
+exc15<- exc0 %>% filter(year==2015) %>% ggplot() + geom_line(mapping=aes(fulldate,value)) +
+  xlab("Date") + ylab("Yen to USD") + labs(color="Year")
+
+exc16<- exc0 %>% filter(year==2016) %>% ggplot() + geom_line(mapping=aes(fulldate,value)) +
+  xlab("Date") + ylab("Yen to USD") + labs(color="Year")
+
+exc17<- exc0 %>% filter(year==2017) %>% ggplot() + geom_line(mapping=aes(fulldate,value)) +
+  xlab("Date") + ylab("Yen to USD") + labs(color="Year")
+
+exc18<- exc0 %>% filter(year==2018) %>% ggplot() + geom_line(mapping=aes(fulldate,value)) +
+  xlab("Date") + ylab("Yen to USD") + labs(color="Year")
+
+grid.arrange(exc14,exc15,exc16,exc17,exc18,top="Exhange Rates")
+
+```
